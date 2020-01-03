@@ -1,0 +1,86 @@
+---
+
+- name: setup ntp server
+  become: yes
+  hosts: ntp_servers
+
+  vars:
+    pkg_to_install:
+      - chrony
+    pkg_to_delete:
+      - ntp
+
+  tasks:
+
+  - name: delete packages
+    yum:
+      name: "{{ pkg_to_delete }}"
+      state: absent
+
+  - name: istall packages
+    yum:
+      name: "{{ pkg_to_install }}"
+      state: latest
+
+  - name: copy config file to server
+    copy:
+      src: "chrony.conf"
+      dest: "/etc/chrony.conf"
+      owner: root
+      group: root
+      mode: '0644'
+
+  - name: change firewall settings
+    firewalld:
+      service: ntp
+      state: enabled
+      permanent: yes
+      immediate: yes
+
+- hosts: ntp_clients
+  become: yes
+
+  vars:
+    pkg_to_install:
+    - chrony
+    pkg_to_delete:
+    - ntp
+    servers_ip: "192.168.1.185"
+
+  tasks:
+
+  - name: delete packages
+    yum:
+      name: "{{ pkg_to_delete }}"
+      state: absent
+
+
+  - name: Install packages
+    yum:
+      name: "{{ pkg_to_install }}"
+      state: latest
+
+  - name: Copy config file for clients
+    template:
+      src: "chrony.conf.j2"
+      dest: "/etc/chrony.conf"
+      owner: root
+      group: root
+      mode: '0644'
+
+- hosts: all
+  become: yes
+
+  tasks:
+
+  - name: Restart chrony
+    service:
+      name: chronyd
+      state: restarted
+      enabled: yes
+
+  - name: run sync
+    shell: chronyc -a 'burst 4/4' && chronyc -a makestep
+
+  - name: test shell
+    shell: echo "file created from ansible" >> /root/hello.txt
